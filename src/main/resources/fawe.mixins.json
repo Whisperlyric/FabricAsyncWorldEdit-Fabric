@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "package": "com.sk89q.worldedit.fabric.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "AccessorServerPlayerGameMode",
+    "MixinLevelChunkSetBlockHook",
+    "MixinLocalSession",
+    "MixinMinecraftServer",
+    "MixinServerGamePacketListenerImpl",
+    "MixinBrushCommands"
+  ],
+  "plugin": "com.sk89q.worldedit.fabric.internal.MixinConfigPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

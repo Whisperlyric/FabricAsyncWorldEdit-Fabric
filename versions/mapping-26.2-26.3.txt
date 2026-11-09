@@ -1,0 +1,4 @@
+# Extra mappings for preprocessing 26.2 -> 26.3
+# Parsed in strict ExtraMapping mode.
+#
+# Most 26.x renames are derived automatically from the Minecraft jars.

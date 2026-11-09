@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "fawe",
+  "version": "${version}",
+  "name": "FAWE Fabric",
+  "description": "FastAsyncWorldEdit for Fabric. Base platform scaffold.",
+  "authors": [
+    "IntellectualSites",
+    "FAWE Fabric port contributors"
+  ],
+  "license": "GPL-3.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.fawe.fabric.FaweFabric"
+    ],
+    "client": [
+      "com.sk89q.worldedit.fabric.client.FabricClientInit"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "worldeditcui_protocol": "*"
+  },
+  "mixins": [
+    "fawe.mixins.json"
+  ]
+}

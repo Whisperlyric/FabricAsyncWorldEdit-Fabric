@@ -1,0 +1,44 @@
+plugins {
+    id 'fabric-loom' version '1.17.20' apply false
+    id 'net.fabricmc.fabric-loom' version '1.17.20' apply false
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.20' apply false
+    id 'com.replaymod.preprocess' version '221276c7'
+}
+
+preprocess {
+    strictExtraMappings = true
+
+    def mc260102 = createNode('26.1.2', 26_01_00, null)
+    def mc260200 = createNode('26.2', 26_02_00, null)
+    def mc260300 = createNode('26.3', 26_03_00, null)
+
+    mc260102.link(mc260200, file('versions/mapping-26.1.2-26.2.txt'))
+    mc260200.link(mc260300, file('versions/mapping-26.2-26.3.txt'))
+
+    [
+        '26.1.2': 26_01_00,
+        '26.2'  : 26_02_00,
+        '26.3'  : 26_03_00,
+    ].forEach { name, code ->
+        findProject(":$name").ext.mcVersion = code
+    }
+}
+
+tasks.register('buildAndGather') {
+    subprojects {
+        dependsOn project.tasks.named('build')
+    }
+    doFirst {
+        def out = rootProject.layout.buildDirectory.dir('libs').get().asFile
+        out.mkdirs()
+        subprojects {
+            copy {
+                from layout.buildDirectory.dir('libs')
+                include '*.jar'
+                exclude '*-dev.jar', '*-sources.jar', '*-shadow.jar'
+                into out
+                duplicatesStrategy = DuplicatesStrategy.INCLUDE
+            }
+        }
+    }
+}

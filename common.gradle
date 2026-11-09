@@ -1,0 +1,139 @@
+final int mcVersion = project.mcVersion
+final boolean unobfuscated = mcVersion >= 26_00_00
+
+apply plugin: unobfuscated ? 'net.fabricmc.fabric-loom' : 'net.fabricmc.fabric-loom-remap'
+apply plugin: 'com.replaymod.preprocess'
+
+group = project.maven_group
+version = "${project.mod_version}+mc${project.minecraft_version}"
+
+base {
+    archivesName = "${project.archives_base_name}-${project.minecraft_version}"
+}
+
+repositories {
+    maven {
+        name = 'Local Mojang Libraries'
+        url = uri(rootProject.file('../local-maven'))
+    }
+    maven {
+        name = 'Aliyun Public'
+        url = 'https://maven.aliyun.com/repository/public'
+    }
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
+    maven {
+        name = 'Paper'
+        url = 'https://repo.papermc.io/repository/maven-public/'
+    }
+    maven {
+        name = 'EngineHub'
+        url = 'https://maven.enginehub.org/repo/'
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+    if (!unobfuscated) {
+        mappings loom.officialMojangMappings()
+    }
+
+    def autoImplementation = { Object... args ->
+        unobfuscated ? implementation(*args) : modImplementation(*args)
+    }
+
+    autoImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    autoImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    // FAWE core 2.16.x. This is the actual WorldEdit/FAWE implementation;
+    // the Fabric platform layer and chunk access are built on top of it.
+    implementation "com.fastasyncworldedit:FastAsyncWorldEdit-Core:${project.fawe_core_version}"
+    implementation "org.anarres:parallelgzip:1.0.5"
+    implementation "com.zaxxer:SparseBitSet:1.3"
+
+    // Shared CUI protocol library — published by EngineHub on their maven (same
+    // coordinates official WorldEdit 7.4.x uses; mc26.1 variant is API-compatible
+    // across our 26.x nodes). At runtime the worldeditcui_protocol mod is provided
+    // by the WorldEditCUI client's jar-in-jar; in dev runs it comes from this
+    // dependency. The CUI rendering client (below) is dev-only.
+    compileOnly "org.enginehub.worldeditcui-protocol:worldeditcui-protocol-common-mc26.1:4.0.3"
+    compileOnly "org.enginehub.worldeditcui-protocol:worldeditcui-protocol-fabric-mc26.1:4.0.3"
+    runtimeOnly "org.enginehub.worldeditcui-protocol:worldeditcui-protocol-common-mc26.1:4.0.3"
+    runtimeOnly "org.enginehub.worldeditcui-protocol:worldeditcui-protocol-fabric-mc26.1:4.0.3"
+    runtimeOnly files(rootProject.file('libs/WorldEditCUI-26.1.1+01.jar'))
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'minecraft_version', project.minecraft_version
+
+    filesMatching('fabric.mod.json') {
+        expand(
+            'version': project.version,
+            'minecraft_version': project.minecraft_version
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+}
+
+jar {
+    from(rootProject.file('LICENSE')) {
+        rename { 'LICENSE-fawe-fabric' }
+    }
+    // Bundle FAWE 宇宙的依赖（组名白名单——组名稳定，文件名会随解析漂移，
+    // 之前按文件名过滤就漏过 snakeyaml）。全量黑名单会把 MC 自带的
+    // netty/fastutil/icu4j/oshi 等也打进来（实测 103MB），故按组收窄。
+    // Resolution must stay lazy (closure) — loom still mutates runtimeClasspath
+    // during later configuration.
+    from({
+        def faweGroups = ['com.fastasyncworldedit', 'com.sk89q', 'com.sk89q.lib', 'com.zaxxer',
+                          'com.github.luben', 'com.googlecode.json-simple', 'org.anarres',
+                          'org.antlr', 'org.mozilla', 'org.yaml', 'at.yawk.lz4']
+        configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+            .findAll { a -> a.moduleVersion.id.group in faweGroups }
+            .collect { it.file }
+            .collect { zipTree(it) }
+    }) {
+        exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/maven/**'
+        exclude 'module-info.class'
+        exclude 'META-INF/versions/**/module-info.class'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Publish the built mod jar into the sibling local-maven repo so sibling projects
+// (arceon-fabric) and IDE Gradle syncs resolve it as a normal Maven dependency
+// instead of a fileTree jar that some IDE setups fail to index.
+apply plugin: 'maven-publish'
+publishing {
+    publications {
+        faweFabric(MavenPublication) {
+            groupId = project.maven_group
+            artifactId = "fawe-fabric-${project.minecraft_version}"
+            version = project.mod_version
+            artifact jar
+        }
+    }
+    repositories {
+        maven { url = uri(rootProject.file('../local-maven')) }
+    }
+}
